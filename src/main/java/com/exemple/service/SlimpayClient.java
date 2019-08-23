@@ -1,9 +1,7 @@
 package com.exemple.service;
 
-import com.exemple.model.SlimpayCreateOrderRequest;
-import com.exemple.model.SlimpayMandate;
-import com.exemple.model.SlimpayOrder;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import com.exemple.exception.SlimpayClientException;
+import com.exemple.model.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.slimpay.hapiclient.exception.HttpException;
 import com.slimpay.hapiclient.hal.CustomRel;
@@ -19,6 +17,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 
 import javax.json.JsonObject;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
@@ -63,7 +62,7 @@ public class SlimpayClient {
                 .build();
     }
 
-    public SlimpayOrder createSignMandateOrder(String userId) throws Exception {
+    public SlimpayOrder createSignMandateOrder(String userId) throws SlimpayClientException {
         SlimpayCreateOrderRequest.BillingAddress billingAddress = new SlimpayCreateOrderRequest.BillingAddress()
                 .setStreet1("4 rue de la Rose")
                 .setStreet2("Numéro fr poste 122")
@@ -91,26 +90,30 @@ public class SlimpayClient {
         return sendCreateOrderRequest(userId, signMandateRequest);
     }
 
-    private SlimpayOrder sendCreateOrderRequest(String userId, SlimpayCreateOrderRequest amendMandateRequest) throws JsonProcessingException, HttpException {
-        HttpEntity request = new ByteArrayEntity(OBJECT_MAPPER.writeValueAsBytes(amendMandateRequest), ContentType.APPLICATION_JSON);
+    private SlimpayOrder sendCreateOrderRequest(String userId, SlimpayCreateOrderRequest createOrderRequest) throws SlimpayClientException {
+        try {
+            HttpEntity request = new ByteArrayEntity(OBJECT_MAPPER.writeValueAsBytes(createOrderRequest), ContentType.APPLICATION_JSON);
 
-        // Create sign mandate order
-        Follow createOrderFollow = new Follow.Builder(CREATE_ORDER_REL)
-                .setMethod(Method.POST)
-                .setMessageBody(request)
-                .build();
+            // Create sign mandate order
+            Follow createOrderFollow = new Follow.Builder(CREATE_ORDER_REL)
+                    .setMethod(Method.POST)
+                    .setMessageBody(request)
+                    .build();
+            Resource createOrderResource = HAPI_CLIENT.send(createOrderFollow);
+            if (createOrderResource == null || createOrderResource.getState() == null || ! createOrderResource.getState().containsKey("id")) {
+                throw new IllegalStateException("Slimpay create order response is not complete");
+            }
 
-        Resource createOrderResource = HAPI_CLIENT.send(createOrderFollow);
-        if (createOrderResource == null || createOrderResource.getState() == null || !createOrderResource.getState().containsKey("id")) {
-            throw new IllegalStateException("Slimpay sign mandate order response is not complete for use " + userId);
+            return new SlimpayOrder()
+                    .setOrderId(createOrderResource.getState().getString("id"))
+                    .setRedirectUrl(createOrderResource.getLink(new CustomRel(SlimpayClient.REL_NAMESPACE + "user-approval")).getHref());
+
+        } catch (Exception e) {
+            throw slimpayClientException("Error when creating Slimpay order for user [" + userId + "]", e);
         }
-
-        return new SlimpayOrder()
-                .setOrderId(createOrderResource.getState().getString("id"))
-                .setRedirectUrl(createOrderResource.getLink(new CustomRel(SlimpayClient.REL_NAMESPACE + "user-approval")).getHref());
     }
 
-    public SlimpayOrder createAmendMandateOrder(String userId, String mandateReference) throws Exception {
+    public SlimpayOrder createAmendMandateOrder(String userId, String mandateReference) throws SlimpayClientException {
 
         SlimpayCreateOrderRequest amendMandateRequest = new SlimpayCreateOrderRequest()
                 .setPaymentScheme("SEPA.DIRECT_DEBIT.CORE")
@@ -124,50 +127,49 @@ public class SlimpayClient {
         return sendCreateOrderRequest(userId, amendMandateRequest);
     }
 
-    public SlimpayMandate getMandate(String userId) throws Exception {
-        String mandateUrl = getMandateUrl(userId);
-        if (mandateUrl == null) {
-            return null;
-        }
-
-        // Get mandate infos
-        Resource mandateResource = HAPI_CLIENT.send(new Request.Builder(mandateUrl).setMethod(Method.GET).build());
-        if (mandateResource == null) {
-            throw new IllegalStateException("Slimpay get mandate response is null for user " + userId);
-        }
-
-        // Get mandate bank account infos
-        Resource bankAccountResource = null;
+    public SlimpayMandate getMandate(String userId) throws SlimpayClientException {
         try {
+            String mandateUrl = getMandateUrl(userId);
+            if (mandateUrl == null) {
+                return null;
+            }
+
+            // Get mandate infos
+            Resource mandateResource = HAPI_CLIENT.send(new Request.Builder(mandateUrl).setMethod(Method.GET).build());
+            if (mandateResource == null) {
+                throw new IllegalStateException("Slimpay get mandate response is null");
+            }
+
+            // Get mandate bank account infos
             String bankAccountUrl = mandateResource.getLink(GET_BANK_ACCOUNT_REL).getHref();
-            bankAccountResource = HAPI_CLIENT.send(new Request.Builder(bankAccountUrl).setMethod(Method.GET).build());
-        } catch (RuntimeException e) {
-            // Do nothing
+            Resource bankAccountResource = HAPI_CLIENT.send(new Request.Builder(bankAccountUrl).setMethod(Method.GET).build());
+
+            // Get mandate card alias
+            //TODO
+
+            // Create mandate response
+            LocalDateTime mandateSignedDate = null;
+            try {
+                mandateSignedDate = LocalDateTime.parse(getJsonElementValue(mandateResource.getState(), "dateSigned"), DATE_TIME_FORMATTER);
+            } catch (RuntimeException re) {
+                // Do nothing
+            }
+
+            SlimpayMandate slimpayMandate = new SlimpayMandate()
+                    .setReference(getJsonElementValue(mandateResource.getState(), "reference"))
+                    .setDateSigned(mandateSignedDate)
+                    .setStatus(SlimpayMandate.Status.fromCode(getJsonElementValue(mandateResource.getState(), "state")));
+
+            if (bankAccountResource != null) {
+                slimpayMandate.setBankName(getJsonElementValue(bankAccountResource.getState(), "institutionName"))
+                        .setIban(getJsonElementValue(bankAccountResource.getState(), "iban"))
+                        .setBic(getJsonElementValue(bankAccountResource.getState(), "bic"));
+            }
+
+            return slimpayMandate;
+        } catch (Exception e) {
+            throw slimpayClientException("Error when getting mandate for user [" + userId + "]", e);
         }
-
-        // Get mandate card alias
-        //TODO
-
-        // Create mandate response
-        LocalDateTime mandateSignedDate = null;
-        try {
-            mandateSignedDate = LocalDateTime.parse(getJsonElementValue(mandateResource.getState(), "dateSigned"), DATE_TIME_FORMATTER);
-        } catch (RuntimeException re) {
-            // Do nothing
-        }
-
-        SlimpayMandate slimpayMandate = new SlimpayMandate()
-                .setReference(getJsonElementValue(mandateResource.getState(), "reference"))
-                .setDateSigned(mandateSignedDate)
-                .setStatus(SlimpayMandate.Status.fromCode(getJsonElementValue(mandateResource.getState(), "state")));
-
-        if (bankAccountResource != null) {
-            slimpayMandate.setBankName(getJsonElementValue(bankAccountResource.getState(), "institutionName"))
-                    .setIban(getJsonElementValue(bankAccountResource.getState(), "iban"))
-                    .setBic(getJsonElementValue(bankAccountResource.getState(), "bic"));
-        }
-
-        return slimpayMandate;
     }
 
     private String getMandateUrl(String userId) throws Exception {
@@ -180,7 +182,7 @@ public class SlimpayClient {
 
         Resource searchSubscriberResource = HAPI_CLIENT.send(searchSubscriberFollow);
         if (searchSubscriberResource == null) {
-            throw new IllegalStateException("Slimpay get subscriber response is null for user  " + userId);
+            throw new IllegalStateException("Slimpay get subscriber response is null");
         }
 
         String subscriberMandateUrl = null;
@@ -197,14 +199,40 @@ public class SlimpayClient {
         return subscriberMandateUrl;
     }
 
-    public boolean hasAlreadyActiveMandate(String userId) throws Exception {
+    public boolean hasActiveMandate(String userId) throws SlimpayClientException {
         SlimpayMandate slimpayMandate = getMandate(userId);
 
         return slimpayMandate != null && SlimpayMandate.Status.ACTIVE.equals(slimpayMandate.getStatus());
     }
 
+    private SlimpayClientException slimpayClientException(String message, Exception e) throws SlimpayClientException {
+        SlimpayClientException sce = new SlimpayClientException(message, e);
+
+        if(e instanceof HttpException) {
+            HttpException he = (HttpException) e;
+            sce.setHttpStatusCode(he.getStatusCode())
+                    .setSlimpayErrorCode(parseErrorBodyResponse(he.getResponseBody()));
+        }
+
+        throw sce;
+    }
+
     private static String getJsonElementValue(JsonObject jsonObject, String elementName) {
         return jsonObject != null && jsonObject.containsKey(elementName) ? jsonObject.getString(elementName) : null;
+    }
+
+    private SlimpayErrorCode parseErrorBodyResponse(String body) {
+        SlimpayErrorCode slimpayErrorCode = null;
+        try {
+            SlimpayError slimpayError = OBJECT_MAPPER.readValue(body, SlimpayError.class);
+            if(slimpayError != null && slimpayError.getCode() != null) {
+                slimpayErrorCode = SlimpayErrorCode.fromCode(slimpayError.getCode());
+            }
+        } catch (IOException e) {
+            // Body doesn't contain error
+        }
+
+        return slimpayErrorCode != null ? slimpayErrorCode : SlimpayErrorCode.UNKNOWN;
     }
 
 }

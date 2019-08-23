@@ -1,5 +1,6 @@
 package com.exemple;
 
+import com.exemple.exception.SlimpayClientException;
 import com.exemple.model.SlimpayMandate;
 import com.exemple.model.SlimpayOrder;
 import com.exemple.service.SlimpayClient;
@@ -23,7 +24,7 @@ public class Application {
 
         Application app = new Application();
 
-        switch (action) {
+        switch (action.toLowerCase()) {
             case "create" :
                 app.signMandate(userId);
                 break;
@@ -56,7 +57,7 @@ public class Application {
             System.out.println("---------------------------------------------------- ");
 
             getMandate(userId);
-        } catch (Exception e) {
+        } catch (SlimpayClientException e) {
             e.printStackTrace();
         }
     }
@@ -76,7 +77,7 @@ public class Application {
             } else {
                 System.out.println("No mandate found for user " + userId);
             }
-        } catch (Exception e) {
+        } catch (SlimpayClientException e) {
             e.printStackTrace();
         }
 
@@ -86,14 +87,14 @@ public class Application {
     private void checkMandate(String userId) {
         System.out.println("Checking mandate of user " + userId);
         try {
-            boolean hasAlreadyActiveMandate = slimpayClient.hasAlreadyActiveMandate(userId);
+            boolean hasAlreadyActiveMandate = slimpayClient.hasActiveMandate(userId);
 
             if(hasAlreadyActiveMandate) {
                 System.out.println("User " + userId + " has active mandate");
             } else {
                 System.out.println("User " + userId + " doesn't have active mandate");
             }
-        } catch (Exception e) {
+        } catch (SlimpayClientException e) {
             e.printStackTrace();
         }
     }
@@ -117,7 +118,7 @@ public class Application {
             System.out.print("Press enter once finished to amend mandate ");
             new Scanner(System.in).nextLine();
 
-        } catch (Exception e) {
+        } catch (SlimpayClientException e) {
             e.printStackTrace();
         }
 
