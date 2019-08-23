@@ -129,10 +129,12 @@ public class SlimpayCreateOrderRequest {
     public static class Item {
 
         private String type;
+        private String action;
         private Mandate mandate;
 
-        public Item(String type, Mandate mandate) {
-            this.type = type;
+        public Item(String action, Mandate mandate) {
+            this.type = "signMandate";
+            this.action = action;
             this.mandate = mandate;
         }
 
@@ -142,6 +144,15 @@ public class SlimpayCreateOrderRequest {
 
         public Item setType(String type) {
             this.type = type;
+            return this;
+        }
+
+        public String getAction() {
+            return action;
+        }
+
+        public Item setAction(String action) {
+            this.action = action;
             return this;
         }
 
@@ -160,8 +171,14 @@ public class SlimpayCreateOrderRequest {
 
         private Signatory signatory;
 
+        private String reference;
+
         public Mandate(Signatory signatory) {
             this.signatory = signatory;
+        }
+
+        public Mandate(String reference) {
+            this.reference = reference;
         }
 
         public Signatory getSignatory() {
@@ -170,6 +187,15 @@ public class SlimpayCreateOrderRequest {
 
         public Mandate setSignatory(Signatory signatory) {
             this.signatory = signatory;
+            return this;
+        }
+
+        public String getReference() {
+            return reference;
+        }
+
+        public Mandate setReference(String reference) {
+            this.reference = reference;
             return this;
         }
     }
