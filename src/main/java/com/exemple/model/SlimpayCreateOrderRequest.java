@@ -7,6 +7,8 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SlimpayCreateOrderRequest {
 
+    public static final String SEPA_PAYMENT_SCHEMA = "SEPA.DIRECT_DEBIT.CORE";
+
     private boolean started = true;
     private String paymentScheme;
     private Creditor creditor;
@@ -128,12 +130,18 @@ public class SlimpayCreateOrderRequest {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Item {
 
+        public static final String SIGN_MANDATE_TYPE = "signMandate";
+        public static final String CARD_ALIAS_TYPE = "cardAlias";
+
+        public static final String SIGN_ACTION = "sign";
+        public static final String AMEND_BANK_ACCOUNT_ACTION = "amendBankAccount";
+
         private String type;
         private String action;
         private Mandate mandate;
 
-        public Item(String action, Mandate mandate) {
-            this.type = "signMandate";
+        public Item(String type, String action, Mandate mandate) {
+            this.type = type;
             this.action = action;
             this.mandate = mandate;
         }

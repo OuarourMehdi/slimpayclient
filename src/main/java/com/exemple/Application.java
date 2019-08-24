@@ -3,13 +3,13 @@ package com.exemple;
 import com.exemple.exception.SlimpayClientException;
 import com.exemple.model.SlimpayMandate;
 import com.exemple.model.SlimpayOrder;
-import com.exemple.service.SlimpayClient;
+import com.exemple.service.SlimpayRestApiClient;
 
 import java.util.Scanner;
 
 public class Application {
 
-    private SlimpayClient slimpayClient = new SlimpayClient();
+    private SlimpayRestApiClient slimpayRestApiClient = new SlimpayRestApiClient();
 
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
@@ -46,7 +46,7 @@ public class Application {
     private void signMandate(String userId) {
         System.out.println("Creating sign mandate order for user " + userId);
         try {
-            SlimpayOrder signMandateOrderResponse = slimpayClient.createSignMandateOrder(userId);
+            SlimpayOrder signMandateOrderResponse = slimpayRestApiClient.createSignMandateOrder(userId);
 
             System.out.println("Sign mandate order created with id " + signMandateOrderResponse.getOrderId());
             System.out.println("Url to sign mandate " + signMandateOrderResponse.getRedirectUrl());
@@ -65,7 +65,7 @@ public class Application {
     private SlimpayMandate getMandate(String userId) {
         SlimpayMandate slimpayMandate = null;
         try {
-            slimpayMandate = slimpayClient.getMandate(userId);
+            slimpayMandate = slimpayRestApiClient.getMandate(userId);
 
             if(slimpayMandate != null) {
                 System.out.println("Reference   : " + slimpayMandate.getReference());
@@ -87,7 +87,7 @@ public class Application {
     private void checkMandate(String userId) {
         System.out.println("Checking mandate of user " + userId);
         try {
-            boolean hasAlreadyActiveMandate = slimpayClient.hasActiveMandate(userId);
+            boolean hasAlreadyActiveMandate = slimpayRestApiClient.hasActiveMandate(userId);
 
             if(hasAlreadyActiveMandate) {
                 System.out.println("User " + userId + " has active mandate");
@@ -110,7 +110,7 @@ public class Application {
         try {
             System.out.println("---------------------------------------------------- ");
             System.out.println("Creating amend mandate order for user " + userId);
-            SlimpayOrder amendMandateOrderResponse = slimpayClient.createAmendMandateOrder(userId, currentMandate.getReference());
+            SlimpayOrder amendMandateOrderResponse = slimpayRestApiClient.createAmendMandateOrder(userId, currentMandate.getReference());
 
             System.out.println("Amend mandate order created with id " + amendMandateOrderResponse.getOrderId());
             System.out.println("Url to amend mandate " + amendMandateOrderResponse.getRedirectUrl());
