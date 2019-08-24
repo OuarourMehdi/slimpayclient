@@ -17,7 +17,6 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 
 import javax.json.JsonObject;
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
@@ -25,6 +24,7 @@ import java.util.List;
 
 import static com.exemple.model.SlimpayCreateOrderRequest.Item.*;
 import static com.exemple.model.SlimpayCreateOrderRequest.SEPA_PAYMENT_SCHEMA;
+import static com.exemple.model.SlimpayCreateOrderRequest.Signatory.MR;
 
 public class SlimpayRestApiClient {
 
@@ -36,19 +36,21 @@ public class SlimpayRestApiClient {
 
     private static final String REL_NAMESPACE = "https://api.slimpay.net/alps#";
 
-    private static final Rel CREATE_ORDER_REL = new CustomRel(REL_NAMESPACE + "create-orders");
+    static final Rel CREATE_ORDER_REL = new CustomRel(REL_NAMESPACE + "create-orders");
 
-    private static final Rel SEARCH_SUBSCRIBERS_REL = new CustomRel(REL_NAMESPACE + "search-subscribers");
+    static final Rel ORDER_USER_APPROVAL_REL = new CustomRel(SlimpayRestApiClient.REL_NAMESPACE + "user-approval");
 
-    private static final Rel GET_MANDATE_REL = new CustomRel(REL_NAMESPACE + "get-mandate");
+    static final Rel SEARCH_SUBSCRIBERS_REL = new CustomRel(REL_NAMESPACE + "search-subscribers");
 
-    private static final Rel GET_BANK_ACCOUNT_REL = new CustomRel(REL_NAMESPACE + "get-bank-account");
+    static final Rel GET_MANDATE_REL = new CustomRel(REL_NAMESPACE + "get-mandate");
 
-    private static final Rel SUBSCRIBERS_REL = new CustomRel("subscribers");
+    static final Rel GET_BANK_ACCOUNT_REL = new CustomRel(REL_NAMESPACE + "get-bank-account");
+
+    static final Rel SUBSCRIBERS_REL = new CustomRel("subscribers");
+
+    static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'k:mm:ss.SSSX");
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'k:mm:ss.SSSX");
 
     private final HapiClient hapiClient;
 
@@ -80,7 +82,8 @@ public class SlimpayRestApiClient {
 
         SlimpayCreateOrderRequest.Signatory signatory = new SlimpayCreateOrderRequest.Signatory()
                 .setBillingAddress(billingAddress)
-                .setHonorificPrefix("Mr")
+                .setCompanyName("Test company")
+                .setHonorificPrefix(MR)
                 .setFamilyName("Ouarour")
                 .setGivenName("John")
                 .setEmail("ouarour.mehdi@gmail.com")
@@ -127,7 +130,7 @@ public class SlimpayRestApiClient {
 
             return new SlimpayOrder()
                     .setOrderId(createOrderResource.getState().getString("id"))
-                    .setRedirectUrl(createOrderResource.getLink(new CustomRel(SlimpayRestApiClient.REL_NAMESPACE + "user-approval")).getHref());
+                    .setRedirectUrl(createOrderResource.getLink(ORDER_USER_APPROVAL_REL).getHref());
 
         } catch (Exception e) {
             throw slimpayClientException("Error when creating Slimpay order for user [" + userId + "]", e);
@@ -193,21 +196,27 @@ public class SlimpayRestApiClient {
         }
 
         String subscriberMandateUrl = null;
-        if (searchSubscriberResource.getAllEmbeddedResources().containsKey(SUBSCRIBERS_REL)
+        try {
+            if (searchSubscriberResource.getAllEmbeddedResources().containsKey(SUBSCRIBERS_REL)
                 && !((List) searchSubscriberResource.getAllEmbeddedResources().get(SUBSCRIBERS_REL)).isEmpty()) {
-            try {
                 Resource subscribeResource = (Resource) ((List) searchSubscriberResource.getAllEmbeddedResources().get(SUBSCRIBERS_REL)).get(0);
                 subscriberMandateUrl = subscribeResource.getLink(GET_MANDATE_REL).getHref();
-            } catch (RuntimeException e) {
-                // Do nothing
             }
+        } catch (RuntimeException e) {
+            // Do nothing
         }
 
         return subscriberMandateUrl;
     }
 
-    public boolean hasActiveMandate(String userId) throws SlimpayClientException {
-        SlimpayMandate slimpayMandate = getMandate(userId);
+    public boolean hasActiveMandate(String userId) {
+        SlimpayMandate slimpayMandate = null;
+        try {
+            slimpayMandate = getMandate(userId);
+        } catch (SlimpayClientException sce) {
+            // Log error
+            System.out.println(sce);
+        }
 
         return slimpayMandate != null && SlimpayMandate.Status.ACTIVE.equals(slimpayMandate.getStatus());
     }
@@ -235,7 +244,7 @@ public class SlimpayRestApiClient {
             if(slimpayError != null && slimpayError.getCode() != null) {
                 slimpayErrorCode = SlimpayErrorCode.fromCode(slimpayError.getCode());
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             // Body doesn't contain error
         }
 

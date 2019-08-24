@@ -86,16 +86,12 @@ public class Application {
 
     private void checkMandate(String userId) {
         System.out.println("Checking mandate of user " + userId);
-        try {
-            boolean hasAlreadyActiveMandate = slimpayRestApiClient.hasActiveMandate(userId);
+        boolean hasAlreadyActiveMandate = slimpayRestApiClient.hasActiveMandate(userId);
 
-            if(hasAlreadyActiveMandate) {
-                System.out.println("User " + userId + " has active mandate");
-            } else {
-                System.out.println("User " + userId + " doesn't have active mandate");
-            }
-        } catch (SlimpayClientException e) {
-            e.printStackTrace();
+        if(hasAlreadyActiveMandate) {
+            System.out.println("User " + userId + " has active mandate");
+        } else {
+            System.out.println("User " + userId + " doesn't have active mandate");
         }
     }
 

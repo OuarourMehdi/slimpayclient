@@ -211,7 +211,12 @@ public class SlimpayCreateOrderRequest {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Signatory {
 
+        public static final String MR = "Mr";
+        public static final String MRS = "Mrs";
+        public static final String MISS = "Miss";
+
         private BillingAddress billingAddress;
+        private String companyName;
         private String honorificPrefix;
         private String familyName;
         private String givenName;
@@ -224,6 +229,15 @@ public class SlimpayCreateOrderRequest {
 
         public Signatory setBillingAddress(BillingAddress billingAddress) {
             this.billingAddress = billingAddress;
+            return this;
+        }
+
+        public String getCompanyName() {
+            return companyName;
+        }
+
+        public Signatory setCompanyName(String companyName) {
+            this.companyName = companyName;
             return this;
         }
 
