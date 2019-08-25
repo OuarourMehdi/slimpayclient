@@ -15,6 +15,7 @@ import com.slimpay.hapiclient.http.auth.Oauth2BasicAuthentication;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.util.Asserts;
 
 import javax.json.JsonObject;
 import java.time.LocalDateTime;
@@ -108,9 +109,7 @@ public class SlimpayRestApiClient {
                 .setPaymentScheme(SEPA_PAYMENT_SCHEMA)
                 .setCreditor(new SlimpayCreateOrderRequest.Creditor(RAKUTEN_CREDITOR_REFERENCE))
                 .setSubscriber(new SlimpayCreateOrderRequest.Subscriber(userId))
-                .setSuccessUrl("http://www.google.fr")
-                .setCancelUrl("http://www.bing.fr")
-                .setFailureUrl("http://www.yahoo.fr")
+                .setReturnUrl("http://www.google.fr")
                 .setItems(Collections.singletonList(orderIterm));
     }
 
@@ -124,9 +123,9 @@ public class SlimpayRestApiClient {
                     .setMessageBody(request)
                     .build();
             Resource createOrderResource = hapiClient.send(createOrderFollow);
-            if (createOrderResource == null || createOrderResource.getState() == null || ! createOrderResource.getState().containsKey("id")) {
-                throw new IllegalStateException("Slimpay create order response is not complete");
-            }
+            Asserts.check(createOrderResource != null, "Slimpay create order response is empty");
+            Asserts.check(createOrderResource.getState() != null, "Slimpay create order response doesn't contain state element");
+            Asserts.check(createOrderResource.getState().containsKey("id"), "Slimpay create order response doesn't have id");
 
             return new SlimpayOrder()
                     .setOrderId(createOrderResource.getState().getString("id"))
@@ -149,9 +148,7 @@ public class SlimpayRestApiClient {
 
             // Get mandate infos
             Resource mandateResource = hapiClient.send(new Request.Builder(mandateUrl).setMethod(Method.GET).build());
-            if (mandateResource == null) {
-                throw new IllegalStateException("Slimpay get mandate response is null");
-            }
+            Asserts.check(mandateResource != null, "Slimpay get mandate response is empty");
 
             // Get mandate bank account infos
             String bankAccountUrl = mandateResource.getLink(GET_BANK_ACCOUNT_REL).getHref();
@@ -162,7 +159,7 @@ public class SlimpayRestApiClient {
             try {
                 mandateSignedDate = LocalDateTime.parse(getJsonElementValue(mandateResource.getState(), "dateSigned"), DATE_TIME_FORMATTER);
             } catch (RuntimeException re) {
-                // Do nothing
+                // Log warn
             }
 
             SlimpayMandate slimpayMandate = new SlimpayMandate()
@@ -191,9 +188,7 @@ public class SlimpayRestApiClient {
                 .build();
 
         Resource searchSubscriberResource = hapiClient.send(searchSubscriberFollow);
-        if (searchSubscriberResource == null) {
-            throw new IllegalStateException("Slimpay get subscriber response is null");
-        }
+        Asserts.check(searchSubscriberResource != null, "Slimpay get subscriber response is empty");
 
         String subscriberMandateUrl = null;
         try {

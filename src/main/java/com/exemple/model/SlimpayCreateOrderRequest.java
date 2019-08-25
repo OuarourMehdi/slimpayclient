@@ -13,9 +13,7 @@ public class SlimpayCreateOrderRequest {
     private String paymentScheme;
     private Creditor creditor;
     private Subscriber subscriber;
-    private String successUrl;
-    private String failureUrl;
-    private String cancelUrl;
+    private String returnUrl;
     private List<Item> items;
 
     public boolean getStarted() {
@@ -54,30 +52,12 @@ public class SlimpayCreateOrderRequest {
         return this;
     }
 
-    public String getSuccessUrl() {
-        return successUrl;
+    public String getReturnUrl() {
+        return returnUrl;
     }
 
-    public SlimpayCreateOrderRequest setSuccessUrl(String successUrl) {
-        this.successUrl = successUrl;
-        return this;
-    }
-
-    public String getFailureUrl() {
-        return failureUrl;
-    }
-
-    public SlimpayCreateOrderRequest setFailureUrl(String failureUrl) {
-        this.failureUrl = failureUrl;
-        return this;
-    }
-
-    public String getCancelUrl() {
-        return cancelUrl;
-    }
-
-    public SlimpayCreateOrderRequest setCancelUrl(String cancelUrl) {
-        this.cancelUrl = cancelUrl;
+    public SlimpayCreateOrderRequest setReturnUrl(String returnUrl) {
+        this.returnUrl = returnUrl;
         return this;
     }
 
